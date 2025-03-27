@@ -43,7 +43,7 @@ const JobDetail = () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 25000); // 25秒超时，比服务器稍长
 
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/upload`, {
+      const response = await fetch(`/api/upload`, {
         method: 'POST',
         body: formData,
         signal: controller.signal
