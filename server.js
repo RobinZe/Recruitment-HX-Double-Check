@@ -11,16 +11,9 @@ const require = createRequire(import.meta.url);
 dotenv.config();
 
 const app = express();
-// 删除此处的port声明，因为在文件末尾已经有一个port声明
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-// 在Vercel环境中，静态文件由Vercel自动处理
-if (process.env.VERCEL) {
-  app.use(express.static('dist'));
-} else {
-  app.use(express.static(path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), 'dist')));
-}
+app.use(express.static(path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), 'dist')));
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
@@ -28,8 +21,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// 在Vercel环境中使用内存存储
-const storage = process.env.VERCEL ? multer.memoryStorage() : multer.diskStorage({
+const storage = multer.diskStorage({
   destination: 'uploads/',
   filename: (req, file, cb) => {
     const jobTitle = decodeURIComponent(req.body.jobTitle).replace(/[\/\\:*?"<>|]/g, '');
@@ -47,13 +39,15 @@ const upload = multer({
   fileFilter: (req, file, cb) => file.mimetype === 'application/pdf' ? cb(null, true) : cb(new Error('仅允许PDF格式'))
 });
 
-// 创建上传目录
+// 创建临时上传目录
 const fs = require('fs');
-const uploadsDir = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), 'uploads');
+const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+// 已修复为统一使用uploadsDir变量
+const uploadsDir = path.join(__dirname, 'uploads');
+
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
-
 
 
 // 配置邮件发送器
@@ -100,7 +94,7 @@ const sendEmail = async (filePath, fileName, jobTitle) => {
   }
 };
 
-app.post('/api/upload', upload.single('file'), async (req, res) => {
+app.post('/upload', upload.single('file'), async (req, res) => {
   try {
     console.log('接收到的请求体：', req.body);
     console.log('文件保存成功：', {
@@ -173,16 +167,53 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   }
 });
 
-app.get('/port', (req, res) => {
-  res.json({ port: actualPort });
-});
-
 app.get('/', (req, res) => {
   res.sendFile(path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), 'dist', 'index.html'));
 });
 
-const port = process.env.PORT || 3001;
+let currentPort = parseInt(process.env.SERVER_PORT) || 3000;
 
-app.listen(port, () => {
-  console.log(`服务器运行在端口 ${port}`);
+app.get('/port', (req, res) => {
+  res.json({ port: currentPort });
 });
+
+const startServer = (port = currentPort) => {
+  currentPort = port;
+  app.listen(port, () => {
+    console.log(`服务器运行在 http://localhost:${port}`);
+    console.log('临时上传目录已创建：', uploadsDir);
+    cleanTmpFiles(); // 启动时立即执行一次清理
+  }).on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`端口${port}被占用，尝试端口${port + 1}`);
+      startServer(port + 1);
+    } else {
+      console.error('服务器启动失败:', err);
+    }
+  });
+};
+
+// 定时清理临时文件
+const cleanTmpFiles = () => {
+  try {
+    if (fs.existsSync(uploadsDir)) {
+      const files = fs.readdirSync(uploadsDir);
+      const now = Date.now();
+      files.forEach(file => {
+        const filePath = path.join(uploadsDir, file);
+        const stat = fs.statSync(filePath);
+        if (now - stat.mtimeMs > 86400000) { // 24小时
+          fs.unlinkSync(filePath);
+          console.log(`已清理临时文件: ${file}`);
+        }
+      });
+    }
+  } catch (error) {
+    console.error('清理临时文件时出错:', error);
+  }
+};
+
+// 启动定时清理任务
+setInterval(cleanTmpFiles, 3600000); // 每小时检查一次
+
+startServer();

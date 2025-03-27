@@ -36,10 +36,10 @@ node server.js
 
 ## 邮箱配置说明
 
-本应用使用 Outlook 邮箱发送简历附件。您需要在 `.env` 文件中提供以下配置：
+本应用使用 163 邮箱发送简历附件。您需要在 `.env` 文件中提供以下配置：
 
-- `OUTLOOK_EMAIL`: 您的 Outlook 邮箱地址，用于发送邮件
-- `OUTLOOK_PASSWORD`: 您的 Outlook 邮箱密码或应用密码
+- `MAIL_USERNAME`: 您的 163 邮箱地址，用于发送邮件
+- `MAIL_PASSWORD`: 您的 163 邮箱授权码
 - `TARGET_EMAIL`: 接收简历的目标邮箱地址
 
 ### 注意事项

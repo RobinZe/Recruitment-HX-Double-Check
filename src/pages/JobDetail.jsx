@@ -16,7 +16,6 @@ const JobDetail = () => {
   const [fileList, setFileList] = useState([]); // 上传文件列表
   const [jobDetail, setJobDetail] = useState({}); // 职位详情信息
   const [uploading, setUploading] = useState(false); // 上传状态
-  const [serverPort, setServerPort] = useState(process.env.SERVER_PORT || 3001); // 服务器端口
 
   // 获取并设置职位详情信息
   useEffect(() => {
@@ -44,8 +43,9 @@ const JobDetail = () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 25000); // 25秒超时，比服务器稍长
 
-      // 获取当前服务端口
-    const response = await fetch('/api/upload', {
+      const portResponse = await fetch('/port');
+      const { port } = await portResponse.json();
+      const response = await fetch(`http://localhost:${port}/upload`, {
         method: 'POST',
         body: formData,
         signal: controller.signal
@@ -57,7 +57,11 @@ const JobDetail = () => {
       if (result.success) {
         onSuccess(result, file);
         setUploading(false);
-        message.success(result.emailSent ? '简历上传成功，邮件已发送' : '简历上传成功');
+        message.success(
+          result.emailSent 
+            ? '简历上传成功，邮件已发送' 
+            : '简历已保存至临时目录'
+        );
       } else if (result.timeout) {
         onError(new Error('请求超时'));
         setUploading(false);
@@ -66,7 +70,7 @@ const JobDetail = () => {
         onError(new Error(result.message || '上传失败'));
         setUploading(false);
         if (result.emailError) {
-          message.warning('文件已上传，但邮件发送失败');
+          message.warning(`文件已保存（${req.file.filename}），但邮件发送失败`);
         } else {
           message.error(result.message || '上传失败');
         }
