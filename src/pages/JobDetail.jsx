@@ -43,7 +43,12 @@ const JobDetail = () => {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 25000); // 25秒超时，比服务器稍长
 
-      const response = await fetch(`/api/upload`, {
+      // 使用绝对路径确保API请求正确发送
+      // 尝试从环境变量获取API基础URL，如果不存在则使用当前域名
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || window.location.origin;
+      const apiUrl = baseUrl + '/api/upload';
+      console.log('发送请求到:', apiUrl, '环境变量:', import.meta.env.VITE_API_BASE_URL);
+      const response = await fetch(apiUrl, {
         method: 'POST',
         body: formData,
         signal: controller.signal
@@ -68,7 +73,7 @@ const JobDetail = () => {
         onError(new Error(result.message || '上传失败'));
         setUploading(false);
         if (result.emailError) {
-          message.warning(`文件已保存（${req.file.filename}），但邮件发送失败`);
+          message.warning(`文件已保存（${result.filename || '未知文件名'}），但邮件发送失败`);
         } else {
           message.error(result.message || '上传失败');
         }

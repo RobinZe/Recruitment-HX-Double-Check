@@ -36,8 +36,8 @@ const Home = () => {
                 backgroundColor: '#f0f8ff'
               }}
             >
-              <div style={{ fontSize: '16px', fontWeight: 500 }}>{job.title}</div>
-              <div style={{ marginTop: 8, whiteSpace: 'nowrap' }}>工作地点：{job.location}</div>
+              <div style={{ fontSize: '18px', fontWeight: 600 }}>{job.title}</div>
+              <div style={{ marginTop: 8, fontSize: '12px', color: '#666' }}>工作地点：{job.location}</div>
             </div>
           </List.Item>
         )}
