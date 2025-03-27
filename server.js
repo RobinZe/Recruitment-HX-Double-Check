@@ -11,11 +11,16 @@ const require = createRequire(import.meta.url);
 dotenv.config();
 
 const app = express();
-const port = process.env.SERVER_PORT || 3001;
+// 删除此处的port声明，因为在文件末尾已经有一个port声明
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), 'dist')));
+// 在Vercel环境中，静态文件由Vercel自动处理
+if (process.env.VERCEL) {
+  app.use(express.static('dist'));
+} else {
+  app.use(express.static(path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), 'dist')));
+}
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
@@ -23,7 +28,8 @@ app.use((req, res, next) => {
   next();
 });
 
-const storage = multer.diskStorage({
+// 在Vercel环境中使用内存存储
+const storage = process.env.VERCEL ? multer.memoryStorage() : multer.diskStorage({
   destination: 'uploads/',
   filename: (req, file, cb) => {
     const jobTitle = decodeURIComponent(req.body.jobTitle).replace(/[\/\\:*?"<>|]/g, '');
@@ -94,7 +100,7 @@ const sendEmail = async (filePath, fileName, jobTitle) => {
   }
 };
 
-app.post('/upload', upload.single('file'), async (req, res) => {
+app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
     console.log('接收到的请求体：', req.body);
     console.log('文件保存成功：', {
@@ -175,21 +181,8 @@ app.get('/', (req, res) => {
   res.sendFile(path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), 'dist', 'index.html'));
 });
 
-let actualPort = null;
+const port = process.env.PORT || 3001;
 
-const startServer = (port = process.env.SERVER_PORT || 3001) => {
-  app.listen(port, () => {
-    actualPort = port;
-    console.log(`服务器运行在 http://localhost:${port}`);
-    console.log('上传目录已创建：', path.resolve('uploads'));
-  }).on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-      console.log(`端口${port}被占用，尝试端口${port + 1}`);
-      startServer(port + 1);
-    } else {
-      console.error('服务器启动失败:', err);
-    }
-  });
-};
-
-startServer();
+app.listen(port, () => {
+  console.log(`服务器运行在端口 ${port}`);
+});

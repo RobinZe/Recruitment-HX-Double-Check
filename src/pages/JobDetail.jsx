@@ -45,11 +45,7 @@ const JobDetail = () => {
       const timeoutId = setTimeout(() => controller.abort(), 25000); // 25秒超时，比服务器稍长
 
       // 获取当前服务端口
-    const portResponse = await fetch('/port');
-    const { port } = await portResponse.json();
-    setServerPort(port);
-
-    const response = await fetch(`http://localhost:${serverPort}/upload`, {
+    const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
         signal: controller.signal
