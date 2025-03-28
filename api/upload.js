@@ -18,6 +18,17 @@ const upload = multer({
 
 // 配置邮件发送器
 const createTransporter = () => {
+  console.log('邮件配置信息:', {
+    host: 'smtp.163.com',
+    port: 465,
+    secure: true,
+    auth: {
+      user: process.env.MAIL_USERNAME ? '已配置' : '未配置',
+      pass: process.env.MAIL_PASSWORD ? '已配置' : '未配置'
+    },
+    target: process.env.TARGET_EMAIL || '未配置'
+  });
+  
   return nodemailer.createTransport({
     host: 'smtp.163.com', // 163 SMTP服务器
     port: 465, // 使用SSL的端口
@@ -28,15 +39,36 @@ const createTransporter = () => {
     },
     tls: {
       ciphers: 'SSLv3', // 使用更安全的加密方式
-      rejectUnauthorized: true // 在开发环境中可以设置为false，生产环境建议设置为true
-    }
+      rejectUnauthorized: false // 在Vercel环境中设置为false以避免证书验证问题
+    },
+    debug: true, // 启用调试模式
+    logger: true // 启用日志记录
   });
 };
 
 // 发送邮件函数
 const sendEmail = async (fileBuffer, fileName, jobTitle) => {
   try {
+    // 检查环境变量是否正确配置
+    if (!process.env.MAIL_USERNAME || !process.env.MAIL_PASSWORD || !process.env.TARGET_EMAIL) {
+      console.error('邮件发送失败: 环境变量未正确配置', {
+        MAIL_USERNAME: !!process.env.MAIL_USERNAME,
+        MAIL_PASSWORD: !!process.env.MAIL_PASSWORD,
+        TARGET_EMAIL: !!process.env.TARGET_EMAIL
+      });
+      return { success: false, error: '邮件配置错误: 环境变量未正确设置' };
+    }
+    
     const transporter = createTransporter();
+    
+    // 验证邮件发送器配置
+    try {
+      const verifyResult = await transporter.verify();
+      console.log('邮件发送器验证结果:', verifyResult);
+    } catch (verifyError) {
+      console.error('邮件发送器验证失败:', verifyError);
+      // 继续尝试发送邮件，但记录验证失败
+    }
     
     const mailOptions = {
       from: process.env.MAIL_USERNAME,
@@ -51,12 +83,24 @@ const sendEmail = async (fileBuffer, fileName, jobTitle) => {
       ]
     };
 
+    console.log('准备发送邮件:', {
+      from: process.env.MAIL_USERNAME,
+      to: process.env.TARGET_EMAIL,
+      subject: `新简历投递: ${jobTitle}`,
+      attachmentSize: fileBuffer ? fileBuffer.length : 0
+    });
+
     const info = await transporter.sendMail(mailOptions);
-    console.log('邮件发送成功:', info.messageId);
-    return { success: true, messageId: info.messageId };
+    console.log('邮件发送成功:', info.messageId, info.response);
+    return { success: true, messageId: info.messageId, response: info.response };
   } catch (error) {
-    console.error('邮件发送失败:', error);
-    return { success: false, error: error.message };
+    console.error('邮件发送失败详细信息:', {
+      message: error.message,
+      code: error.code,
+      command: error.command,
+      stack: error.stack
+    });
+    return { success: false, error: error.message, code: error.code };
   }
 };
 
