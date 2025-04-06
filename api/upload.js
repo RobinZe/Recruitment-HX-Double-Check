@@ -19,10 +19,34 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 // 发送邮件函数
 const sendEmail = async (fileBuffer, fileName, jobTitle) => {
   try {
-    if (!process.env.RESEND_API_KEY || !process.env.TARGET_EMAIL) {
-      console.error('邮件发送失败: 环境变量未正确配置');
-      return { success: false, error: '邮件配置错误: 环境变量未正确设置' };
+    // 详细记录环境变量状态（不记录API密钥的具体值）
+    console.log('环境变量检查:', {
+      RESEND_API_KEY: process.env.RESEND_API_KEY ? '已设置' : '未设置',
+      SOURCE_EMAIL: process.env.SOURCE_EMAIL || '未设置',
+      TARGET_EMAIL: process.env.TARGET_EMAIL || '未设置'
+    });
+    
+    if (!process.env.RESEND_API_KEY) {
+      console.error('邮件发送失败: RESEND_API_KEY未设置');
+      return { success: false, error: '邮件配置错误: RESEND_API_KEY未设置' };
     }
+    
+    if (!process.env.TARGET_EMAIL) {
+      console.error('邮件发送失败: TARGET_EMAIL未设置');
+      return { success: false, error: '邮件配置错误: TARGET_EMAIL未设置' };
+    }
+    
+    if (!process.env.SOURCE_EMAIL) {
+      console.error('邮件发送失败: SOURCE_EMAIL未设置');
+      return { success: false, error: '邮件配置错误: SOURCE_EMAIL未设置' };
+    }
+
+    console.log('准备发送邮件:', {
+      from: process.env.SOURCE_EMAIL,
+      to: process.env.TARGET_EMAIL,
+      subject: `新简历投递: ${jobTitle}`,
+      hasAttachment: !!fileBuffer
+    });
 
     const { data, error } = await resend.emails.send({
       from: process.env.SOURCE_EMAIL,
@@ -36,18 +60,18 @@ const sendEmail = async (fileBuffer, fileName, jobTitle) => {
     });
 
     if (error) {
-      console.error('邮件发送失败:', error);
+      console.error('邮件发送失败:', JSON.stringify(error));
       // 处理域名验证错误
       if (error.statusCode === 403 && error.name === 'validation_error') {
         return { success: false, error: '邮件发送失败：需要验证发件人域名。请在Resend控制台完成域名验证。' };
       }
-      return { success: false, error: error.message };
+      return { success: false, error: error.message || JSON.stringify(error) };
     }
-    console.log('邮件发送成功:', data.id);
-    return { success: true, messageId: data.id };
+    console.log('邮件发送成功:', data ? data.id : '无ID返回');
+    return { success: true, messageId: data ? data.id : '无ID返回' };
   } catch (error) {
     console.error('邮件发送异常:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error.message || '未知错误' };
   }
 };
 
@@ -65,6 +89,9 @@ const runMiddleware = (req, res, fn) => {
 
 // API处理函数
 export default async function handler(req, res) {
+  console.log('API请求开始处理, 请求方法:', req.method);
+  console.log('当前环境:', process.env.NODE_ENV || '未知环境');
+  
   // 设置CORS头
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
@@ -72,10 +99,12 @@ export default async function handler(req, res) {
 
   // 处理预检请求
   if (req.method === 'OPTIONS') {
+    console.log('处理OPTIONS预检请求');
     return res.status(200).end();
   }
 
   if (req.method !== 'POST') {
+    console.log('请求方法不允许:', req.method);
     return res.status(405).json({ success: false, message: '方法不允许' });
   }
 

@@ -44,9 +44,10 @@ const JobDetail = () => {
       const timeoutId = setTimeout(() => controller.abort(), 25000); // 25秒超时，比服务器稍长
 
       // 使用绝对路径确保API请求正确发送
-      // 尝试从环境变量获取API基础URL，如果不存在则使用当前域名
+      // 从环境变量获取API基础URL，如果不存在则使用当前域名
       const baseUrl = import.meta.env.VITE_API_BASE_URL || window.location.origin;
-      const apiUrl = baseUrl + '/api/upload';
+      // 确保URL格式正确，避免重复域名
+      const apiUrl = new URL('/api/upload', baseUrl).toString();
       console.log('发送请求到:', apiUrl, '环境变量:', import.meta.env.VITE_API_BASE_URL);
       const response = await fetch(apiUrl, {
         method: 'POST',
