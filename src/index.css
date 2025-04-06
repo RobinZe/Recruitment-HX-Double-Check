@@ -4,8 +4,8 @@
   font-weight: 400;
 
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color: #333333;
+  background-color: #f0f8ff;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -63,4 +63,18 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
+}
+
+:root {
+  --background-color: #f7fbff;
+  --input-bg-color: #e6f0ff;
+}
+
+body {
+  background-color: var(--background-color);
+}
+
+input, textarea {
+  background-color: var(--input-bg-color);
+  border: 1px solid #b3d1ff;
 }

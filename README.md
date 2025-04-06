@@ -1,6 +1,6 @@
 # 招聘网页应用
 
-v2.1.3
+v2.2.0
 
 这是一个简单的招聘网页应用，允许用户浏览职位信息并上传简历。
 
@@ -38,21 +38,19 @@ node server.js
 
 ## 邮箱配置说明
 
-本应用使用 163 邮箱发送简历附件。您需要在 `.env` 文件中提供以下配置：
+本应用使用 Resend 邮件服务发送简历附件。您需要在 `.env` 文件中提供以下配置：
 
-- `MAIL_USERNAME`: 您的 163 邮箱地址，用于发送邮件
-- `MAIL_PASSWORD`: 您的 163 邮箱授权码（不是登录密码）
+- `RESEND_API_KEY`: 您的 Resend API 密钥
 - `TARGET_EMAIL`: 接收简历的目标邮箱地址
 
 ### 注意事项
 
-1. 163邮箱授权码获取方法：
-   - 登录163邮箱网页版
-   - 进入「设置」->「POP3/SMTP/IMAP」
-   - 开启「SMTP服务」
-   - 点击「授权码管理」获取授权码
+1. Resend API 密钥获取方法：
+   - 注册 [Resend](https://resend.com) 账号
+   - 在控制台中创建 API 密钥
+   - 复制 API 密钥到 `.env` 文件中
 
-2. 如果您想使用其他邮件服务提供商（如 Gmail、QQ 邮箱等），需要修改 `api/upload.js` 中的 `createTransporter` 函数，更改 `host`、`port` 和相应的认证信息。
+2. 如果您想使用其他邮件服务提供商（如 SendGrid、Mailgun 等），需要修改 `server.js` 和 `api/upload.js` 中的邮件发送代码。
 
 3. 确保您的邮箱服务提供商允许通过 SMTP 发送邮件，某些免费邮箱可能会限制此功能。
 

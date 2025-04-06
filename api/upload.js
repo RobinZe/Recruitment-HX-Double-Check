@@ -1,9 +1,6 @@
 import multer from 'multer';
-import { createRequire } from 'module';
-import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
-import { join } from 'path';
-import { createReadStream } from 'fs';
+import { Resend } from 'resend';
 
 // 加载环境变量
 dotenv.config();
@@ -16,154 +13,41 @@ const upload = multer({
   fileFilter: (req, file, cb) => file.mimetype === 'application/pdf' ? cb(null, true) : cb(new Error('仅允许PDF格式'))
 });
 
-// 配置邮件发送器
-const createTransporter = () => {
-  console.log('邮件配置信息:', {
-    host: 'smtp.163.com',
-    port: 465,
-    secure: true,
-    auth: {
-      user: process.env.MAIL_USERNAME ? '已配置' : '未配置',
-      pass: process.env.MAIL_PASSWORD ? '已配置' : '未配置'
-    },
-    target: process.env.TARGET_EMAIL || '未配置',
-    vercel_env: process.env.VERCEL_ENV || '非Vercel环境',
-    node_env: process.env.NODE_ENV || '未设置'
-  });
-  
-  // 检查是否在Vercel环境中
-  const isVercelEnv = !!process.env.VERCEL_ENV;
-  console.log(`当前运行环境: ${isVercelEnv ? 'Vercel' : '本地'}, 区域: ${process.env.VERCEL_REGION || '未知'}`);
-  
-  // 在Vercel环境中可能需要特殊处理
-  if (isVercelEnv) {
-    console.log('在Vercel环境中运行，可能需要特殊网络配置');
-  }
-  
-  // 根据环境选择不同的配置
-  const isVercelEnv = !!process.env.VERCEL_ENV;
-  
-  // 在Vercel环境中尝试使用不同的配置
-  if (isVercelEnv) {
-    console.log('在Vercel环境中使用备用配置');
-    return nodemailer.createTransport({
-      host: 'smtp.163.com',
-      port: 587, // 尝试使用587端口（STARTTLS）
-      secure: false, // 对于587端口，设置为false
-      auth: {
-        user: process.env.MAIL_USERNAME,
-        pass: process.env.MAIL_PASSWORD
-      },
-      tls: {
-        ciphers: 'SSLv3',
-        rejectUnauthorized: false
-      },
-      debug: true,
-      logger: true,
-      connectionTimeout: 10000, // 10秒连接超时
-      greetingTimeout: 10000, // 10秒问候超时
-      socketTimeout: 15000 // 15秒套接字超时
-    });
-  } else {
-    // 本地环境使用原始配置
-    return nodemailer.createTransport({
-      host: 'smtp.163.com',
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.MAIL_USERNAME,
-        pass: process.env.MAIL_PASSWORD
-      },
-      tls: {
-        ciphers: 'SSLv3',
-        rejectUnauthorized: false
-      },
-      debug: true,
-      logger: true
-    });
-  }
-};
+// 配置Resend邮件发送器
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // 发送邮件函数
 const sendEmail = async (fileBuffer, fileName, jobTitle) => {
   try {
-    // 检查环境变量是否正确配置
-    console.log('Vercel环境变量检查:', {
-      NODE_ENV: process.env.NODE_ENV,
-      VERCEL_ENV: process.env.VERCEL_ENV,
-      VERCEL_REGION: process.env.VERCEL_REGION
-    });
-    
-    if (!process.env.MAIL_USERNAME || !process.env.MAIL_PASSWORD || !process.env.TARGET_EMAIL) {
-      console.error('邮件发送失败: 环境变量未正确配置', {
-        MAIL_USERNAME: !!process.env.MAIL_USERNAME,
-        MAIL_PASSWORD: !!process.env.MAIL_PASSWORD,
-        TARGET_EMAIL: !!process.env.TARGET_EMAIL
-      });
+    if (!process.env.RESEND_API_KEY || !process.env.TARGET_EMAIL) {
+      console.error('邮件发送失败: 环境变量未正确配置');
       return { success: false, error: '邮件配置错误: 环境变量未正确设置' };
     }
-    
-    const transporter = createTransporter();
-    
-    // 验证邮件发送器配置
-    try {
-      const verifyResult = await transporter.verify();
-      console.log('邮件发送器验证结果:', verifyResult);
-    } catch (verifyError) {
-      console.error('邮件发送器验证失败:', {
-        message: verifyError.message,
-        code: verifyError.code,
-        command: verifyError.command,
-        stack: verifyError.stack,
-        name: verifyError.name
-      });
-      // 继续尝试发送邮件，但记录验证失败
-    }
-    
-    const mailOptions = {
-      from: process.env.MAIL_USERNAME,
+
+    const { data, error } = await resend.emails.send({
+      from: process.env.SOURCE_EMAIL,
       to: process.env.TARGET_EMAIL,
       subject: `新简历投递: ${jobTitle}`,
       text: `收到新的简历投递，职位: ${jobTitle}，文件名: ${fileName}`,
-      attachments: [
-        {
-          filename: fileName,
-          content: fileBuffer
-        }
-      ]
-    };
-
-    console.log('准备发送邮件:', {
-      from: process.env.MAIL_USERNAME,
-      to: process.env.TARGET_EMAIL,
-      subject: `新简历投递: ${jobTitle}`,
-      attachmentSize: fileBuffer ? fileBuffer.length : 0
+      attachments: [{
+        filename: fileName,
+        content: fileBuffer
+      }]
     });
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log('邮件发送成功:', info.messageId, info.response);
-    return { success: true, messageId: info.messageId, response: info.response };
-  } catch (error) {
-    console.error('邮件发送失败详细信息:', {
-      message: error.message,
-      code: error.code,
-      command: error.command,
-      stack: error.stack,
-      name: error.name,
-      responseCode: error.responseCode,
-      rejected: error.rejected,
-      response: error.response
-    });
-    
-    // 针对特定错误类型提供更详细的日志
-    if (error.code === 'EAUTH') {
-      console.error('认证失败: 请检查邮箱账号和密码是否正确');
-    } else if (error.code === 'ESOCKET') {
-      console.error('网络连接问题: 可能是Vercel环境的网络限制');
-    } else if (error.code === 'ETIMEDOUT') {
-      console.error('连接超时: 邮件服务器响应超时');
+    if (error) {
+      console.error('邮件发送失败:', error);
+      // 处理域名验证错误
+      if (error.statusCode === 403 && error.name === 'validation_error') {
+        return { success: false, error: '邮件发送失败：需要验证发件人域名。请在Resend控制台完成域名验证。' };
+      }
+      return { success: false, error: error.message };
     }
-    return { success: false, error: error.message, code: error.code };
+    console.log('邮件发送成功:', data.id);
+    return { success: true, messageId: data.id };
+  } catch (error) {
+    console.error('邮件发送异常:', error);
+    return { success: false, error: error.message };
   }
 };
 
