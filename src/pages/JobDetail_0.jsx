@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Typography, Button, Upload, List, Input, Card } from 'antd';
+import { Typography, Button, Upload, message, List, Input, Card } from 'antd';
 import { UploadOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import jobsData from '../data/jobs.json';
@@ -12,22 +12,10 @@ const JobDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   
-  const [fileList, setFileList] = useState([]);
-  const [jobDetail, setJobDetail] = useState({});
-  const [uploading, setUploading] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalContent, setModalContent] = useState('');
-
-  // 自动关闭弹窗的副作用
-  useEffect(() => {
-    let timer;
-    if (modalVisible) {
-      timer = setTimeout(() => {
-        setModalVisible(false);
-      }, 1000);
-    }
-    return () => timer && clearTimeout(timer);
-  }, [modalVisible]);
+  // 状态管理
+  const [fileList, setFileList] = useState([]); // 上传文件列表
+  const [jobDetail, setJobDetail] = useState({}); // 职位详情信息
+  const [uploading, setUploading] = useState(false); // 上传状态
 
   // 获取并设置职位详情信息
   useEffect(() => {
@@ -46,7 +34,16 @@ const JobDetail = () => {
   const customRequest = async ({ file, onSuccess, onError, onProgress }) => {
     try {
       const formData = new FormData();
-      if (jobDetail?.title) formData.append('jobTitle', jobDetail.title);
+      // 打印请求信息
+      console.log('请求参数:', {
+        url: `${import.meta.env.VITE_API_BASE_URL}/api/upload`,
+        method: 'POST',
+        fileSize: file.size,
+        jobTitle: jobDetail.title
+      });
+      if (jobDetail && jobDetail.title) {
+        formData.append('jobTitle', jobDetail.title);
+      }
       formData.append('file', file);
 
       // 设置请求超时控制 - 1分钟超时
@@ -55,15 +52,17 @@ const JobDetail = () => {
         controller.abort();
         onError(new Error('网络连接失败'));
         setUploading(false);
-        setModalContent('网络超时，请连接外网重试');
-        setModalVisible(true);
-      }, 60000);
+        // 使用message显示错误信息
+        message.error('网络超时');
+      }, 60000); // 1分钟超时
 
+      // 使用绝对路径确保API请求正确发送
       // 从环境变量获取API基础URL，如果不存在则使用当前域名
       const baseUrl = import.meta.env.VITE_API_BASE_URL || window.location.origin;
+      // 确保URL格式正确，避免重复域名
       // 检查环境变量中的URL是否已经包含了'/api/upload'路径
       const apiUrl = baseUrl.includes('/api/upload') ? baseUrl : new URL('/api/upload', baseUrl).toString();
-      
+      console.log('发送请求到:', apiUrl, '环境变量:', import.meta.env.VITE_API_BASE_URL);
       const response = await fetch(apiUrl, {
         method: 'POST',
         body: formData,
@@ -76,23 +75,25 @@ const JobDetail = () => {
       if (response.status === 200) {
         const result = await response.json();
         onSuccess(result, file);
-        setModalContent('上传成功');
-        setModalVisible(true);
+        setUploading(false);
+        // 使用message显示成功信息
+        message.success('上传成功');
       } else {
         onError(new Error(`请求失败，状态码: ${response.status}`));
-        setModalContent('上传失败');
-        setModalVisible(true);
+        setUploading(false);
+        // 使用message显示错误信息
+        message.error('上传失败');
       }
-      setUploading(false);
     } catch (error) {
+      onError(error);
       setUploading(false);
       if (error.name === 'AbortError') {
-        setModalContent('网络超时，请连接外网重试');
+        // 使用message显示错误信息
+        message.error('网络超时');
       } else {
-        setModalContent('上传失败');
+        // 使用message显示错误信息
+        message.error('上传失败');
       }
-      setModalVisible(true);
-      onError(error);
     }
   };
 
@@ -100,7 +101,17 @@ const JobDetail = () => {
   const handleUpload = (info) => {
     // 更新文件列表
     setFileList(info.fileList);
-    if (info.file.status === 'uploading') setUploading(true);
+    
+    // 处理不同的上传状态
+    if (info.file.status === 'uploading') {
+      setUploading(true);
+    } else if (info.file.status === 'done') {
+      setUploading(false);
+      // 这里不需要再次调用message.success，因为customRequest中已经处理
+    } else if (info.file.status === 'error') {
+      setUploading(false);
+      // 这里不需要再次调用message.error，因为customRequest中已经处理
+    }
   };
 
   return (
@@ -113,19 +124,7 @@ const JobDetail = () => {
       >
         返回
       </Button>
-
-      <Modal
-        visible={modalVisible}
-        footer={null}
-        closable={false}
-        centered
-        maskClosable={false}
-        width={300}
-        bodyStyle={{ padding: '20px', textAlign: 'center' }}
-      >
-        {modalContent}
-      </Modal>
-
+      
       <Card bordered={false}>
         <Typography>
           <Title level={2} style={{ marginBottom: 16 }}>{jobDetail.title}</Title>

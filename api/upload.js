@@ -16,62 +16,41 @@ const upload = multer({
 // 配置Resend邮件发送器
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// 发送邮件函数
+// 修改导入部分
+import formData from 'form-data';
+import Mailgun from 'mailgun.js';
+
+// 替换Resend初始化代码
+const mailgun = new Mailgun(formData);
+const mg = mailgun.client({
+  username: 'api',
+  key: process.env.MAILGUN_API_KEY
+});
+
+// 修改发送邮件函数
 const sendEmail = async (fileBuffer, fileName, jobTitle) => {
   try {
-    // 详细记录环境变量状态（不记录API密钥的具体值）
-    console.log('环境变量检查:', {
-      RESEND_API_KEY: process.env.RESEND_API_KEY ? '已设置' : '未设置',
-      SOURCE_EMAIL: process.env.SOURCE_EMAIL || '未设置',
-      TARGET_EMAIL: process.env.TARGET_EMAIL || '未设置'
-    });
-    
-    if (!process.env.RESEND_API_KEY) {
-      console.error('邮件发送失败: RESEND_API_KEY未设置');
-      return { success: false, error: '邮件配置错误: RESEND_API_KEY未设置' };
-    }
-    
-    if (!process.env.TARGET_EMAIL) {
-      console.error('邮件发送失败: TARGET_EMAIL未设置');
-      return { success: false, error: '邮件配置错误: TARGET_EMAIL未设置' };
-    }
-    
-    if (!process.env.SOURCE_EMAIL) {
-      console.error('邮件发送失败: SOURCE_EMAIL未设置');
-      return { success: false, error: '邮件配置错误: SOURCE_EMAIL未设置' };
-    }
-
-    console.log('准备发送邮件:', {
-      from: process.env.SOURCE_EMAIL,
-      to: process.env.TARGET_EMAIL,
-      subject: `新简历投递: ${jobTitle}`,
-      hasAttachment: !!fileBuffer
-    });
-
-    const { data, error } = await resend.emails.send({
-      from: process.env.SOURCE_EMAIL,
+    const data = {
+      from: `BGI Recruitment <recruitment@${process.env.MAILGUN_DOMAIN}>`,
       to: process.env.TARGET_EMAIL,
       subject: `新简历投递: ${jobTitle}`,
       text: `收到新的简历投递，职位: ${jobTitle}，文件名: ${fileName}`,
-      attachments: [{
+      attachment: {
         filename: fileName,
-        content: fileBuffer
-      }]
-    });
-
-    if (error) {
-      console.error('邮件发送失败:', JSON.stringify(error));
-      // 处理域名验证错误
-      if (error.statusCode === 403 && error.name === 'validation_error') {
-        return { success: false, error: '邮件发送失败：需要验证发件人域名。请在Resend控制台完成域名验证。' };
+        data: fileBuffer
       }
-      return { success: false, error: error.message || JSON.stringify(error) };
-    }
-    console.log('邮件发送成功:', data ? data.id : '无ID返回');
-    return { success: true, messageId: data ? data.id : '无ID返回' };
+    };
+
+    const result = await mg.messages.create(process.env.MAILGUN_DOMAIN, data);
+    console.log('邮件发送成功:', result.id);
+    return { success: true, messageId: result.id };
   } catch (error) {
-    console.error('邮件发送异常:', error);
-    return { success: false, error: error.message || '未知错误' };
+    console.error('邮件发送失败:', error);
+    return { 
+      success: false,
+      error: error.message || '邮件发送失败',
+      details: error.details
+    };
   }
 };
 
